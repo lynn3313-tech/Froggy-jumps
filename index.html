@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Froggy Jumps - Multiplayer Coin Rush</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Fredoka', cursive, sans-serif;
+            background: #061c14;
+            color: #f0fdf4;
+            overflow: hidden;
+        }
+        .font-outfit {
+            font-family: 'Outfit', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(6, 44, 30, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(52, 211, 153, 0.25);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .glass-card {
+            background: rgba(15, 60, 42, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+        .btn-bounce {
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .btn-bounce:hover {
+            transform: translateY(-4px) scale(1.03);
+            box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+        }
+        .btn-bounce:active {
+            transform: translateY(1px) scale(0.97);
+        }
+        .coin-shine {
+            animation: pulse-shine 1.8s infinite ease-in-out;
+        }
+        @keyframes pulse-shine {
+            0%, 100% { filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.8)); }
+            50% { filter: drop-shadow(0 0 18px rgba(250, 204, 21, 1)); }
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(6, 44, 30, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #10b981;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950">
+
+    <!-- HUD Header -->
+    <header class="absolute top-0 left-0 right-0 z-20 p-4 flex justify-between items-center pointer-events-none">
+        <div class="flex items-center gap-3 pointer-events-auto">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 p-2.5 rounded-2xl shadow-lg border border-emerald-300/40 flex items-center gap-2">
+                <i class="fa-solid font-bold text-2xl text-emerald-950 fa-frog"></i>
+                <h1 class="text-xl md:text-2xl font-extrabold tracking-wide text-emerald-950 uppercase">Froggy Jumps</h1>
+            </div>
+            <div class="bg-amber-500/20 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-400/40 flex items-center gap-2 text-amber-300 font-bold text-sm">
+                <i class="fa-solid fa-coins text-amber-400 text-lg coin-shine"></i>
+                <span>1 Coin = <span class="text-emerald-400 font-extrabold text-base">+2 Points</span></span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 pointer-events-auto">
+            <button id="audio-toggle-btn" class="glass-card p-3 rounded-2xl text-emerald-300 hover:text-emerald-100 hover:bg-emerald-800/40 transition">
+                <i id="audio-icon" class="fa-solid fa-volume-high text-lg"></i>
+            </button>
+            <button id="pause-btn" class="glass-card p-3 rounded-2xl text-emerald-300 hover:text-emerald-100 hover:bg-emerald-800/40 transition hidden">
+                <i class="fa-solid fa-pause text-lg"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Canvas Game Viewport -->
+    <main class="relative w-full h-full flex items-center justify-center">
+        <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+
+        <!-- Live Scoreboard Overlay (During Gameplay) -->
+        <div id="hud-scoreboard" class="absolute top-20 left-4 right-4 z-10 flex flex-wrap justify-center gap-3 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
+            <!-- Dynamic Player Cards rendered in JS -->
+        </div>
+
+        <!-- Touch Controls Overlay for Mobile/Tablet -->
+        <div id="mobile-controls" class="absolute bottom-6 left-0 right-0 z-20 px-6 flex justify-between items-center pointer-events-auto hidden md:hidden">
+            <div class="flex gap-2">
+                <button id="btn-touch-left" class="w-16 h-16 rounded-2xl glass-panel text-3xl text-emerald-300 flex items-center justify-center active:bg-emerald-600/50 active:scale-95 transition">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button id="btn-touch-right" class="w-16 h-16 rounded-2xl glass-panel text-3xl text-emerald-300 flex items-center justify-center active:bg-emerald-600/50 active:scale-95 transition">
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+            <button id="btn-touch-jump" class="w-20 h-20 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 text-emerald-950 font-black text-2xl shadow-xl flex items-center justify-center active:scale-90 transition border-2 border-emerald-200">
+                JUMP!
+            </button>
+        </div>
+    </main>
+
+    <!-- MAIN MENU OVERLAY -->
+    <div id="menu-modal" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-emerald-950/80 backdrop-blur-md">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-6 md:p-8 text-center relative overflow-hidden border border-emerald-400/30">
+            <!-- Decorative Frogs background elements -->
+            <div class="absolute -top-12 -right-12 text-emerald-500/10 text-9xl">
+                <i class="fa-solid fa-frog"></i>
+            </div>
+
+            <div class="inline-flex p-4 rounded-3xl bg-gradient-to-tr from-emerald-500/30 to-teal-400/20 border border-emerald-400/40 mb-4 shadow-inner">
+                <i class="fa-solid fa-frog text-6xl text-emerald-400 animate-bounce"></i>
+            </div>
+
+            <h2 class="text-3xl md:text-4xl font-black text-white tracking-wider mb-1">FROGGY JUMPS</h2>
+            <p class="text-emerald-300 text-sm mb-6 font-medium">Lompat Teratai, Kutip Syiling & Menangi Kolam!</p>
+
+            <!-- Mode Selection Tabs -->
+            <div class="grid grid-cols-2 gap-3 mb-6 bg-emerald-950/60 p-1.5 rounded-2xl border border-emerald-800/60">
+                <button id="tab-local" class="py-2.5 px-4 rounded-xl font-bold text-sm transition bg-gradient-to-r from-emerald-500 to-teal-400 text-emerald-950 shadow-md">
+                    <i class="fa-solid fa-users text-base mr-1.5"></i>Tempatan (Local)
+                </button>
+                <button id="tab-online" class="py-2.5 px-4 rounded-xl font-bold text-sm text-emerald-300 hover:text-white transition">
+                    <i class="fa-solid fa-globe text-base mr-1.5"></i>Bilik Dalam Talian
+                </button>
+            </div>
+
+            <!-- LOCAL MULTIPLAYER SETTINGS -->
+            <div id="panel-local" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-emerald-300 uppercase tracking-wider mb-2 text-left">
+                        Bilangan Pemain (1 - 4 Pemain)
+                    </label>
+                    <div class="grid grid-cols-4 gap-2" id="player-count-selector">
+                        <button data-count="1" class="count-btn py-3 rounded-2xl glass-card font-extrabold text-lg text-emerald-200 border-2 border-transparent hover:border-emerald-400 transition">1P</button>
+                        <button data-count="2" class="count-btn py-3 rounded-2xl glass-card font-extrabold text-lg text-emerald-950 bg-emerald-400 border-2 border-emerald-200 transition">2P</button>
+                        <button data-count="3" class="count-btn py-3 rounded-2xl glass-card font-extrabold text-lg text-emerald-200 border-2 border-transparent hover:border-emerald-400 transition">3P</button>
+                        <button data-count="4" class="count-btn py-3 rounded-2xl glass-card font-extrabold text-lg text-emerald-200 border-2 border-transparent hover:border-emerald-400 transition">4P</button>
+                    </div>
+                </div>
+
+                <!-- Frog Customization List -->
+                <div id="frog-selection-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Dynamic Frog Cards -->
+                </div>
+
+                <button id="start-local-btn" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 text-emerald-950 font-black text-xl shadow-xl hover:brightness-110 btn-bounce uppercase tracking-wide">
+                    <i class="fa-solid fa-play mr-2"></i> Mula Permainan!
+                </button>
+            </div>
+
+            <!-- ONLINE ROOM MULTIPLAYER PANEL -->
+            <div id="panel-online" class="space-y-4 hidden">
+                <div class="bg-emerald-900/40 p-4 rounded-2xl border border-emerald-700/50 text-left">
+                    <label class="block text-xs font-bold text-emerald-300 uppercase tracking-wider mb-1">Kod Bilkan (Room Code)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="room-code-input" placeholder="Contoh: FROG1" class="flex-1 bg-emerald-950/80 border border-emerald-600/50 rounded-xl px-4 py-2.5 text-white font-mono font-bold uppercase focus:outline-none focus:border-emerald-400">
+                        <button id="join-room-btn" class="px-5 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-emerald-950 font-bold transition">
+                            Sertai
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative flex py-1 items-center">
+                    <div class="flex-grow border-t border-emerald-800"></div>
+                    <span class="flex-shrink mx-4 text-xs font-bold text-emerald-500 uppercase">Atau</span>
+                    <div class="flex-grow border-t border-emerald-800"></div>
+                </div>
+
+                <button id="create-room-btn" class="w-full py-3.5 rounded-2xl bg-emerald-600/60 hover:bg-emerald-500/80 border border-emerald-400/50 text-white font-extrabold text-base transition btn-bounce">
+                    <i class="fa-solid fa-plus-circle mr-2"></i> Cipta Bilik Baru
+                </button>
+
+                <div id="online-status" class="text-xs text-amber-300/90 font-medium hidden">
+                    Menghubungkan ke pelayan...
+                </div>
+            </div>
+
+            <button id="how-to-play-btn" class="mt-4 text-xs text-emerald-400 hover:text-emerald-200 font-bold underline cursor-pointer">
+                <i class="fa-circle-question fa-regular mr-1"></i> Cara Bermain & Kawalan
+            </button>
+        </div>
+    </div>
+
+    <!-- HOW TO PLAY MODAL -->
+    <div id="help-modal" class="absolute inset-0 z-40 flex items-center justify-center p-4 bg-emerald-950/85 backdrop-blur-md hidden">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 text-left border border-emerald-400/30">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-emerald-400"></i> Cara Bermain
+                </h3>
+                <button id="close-help-btn" class="text-emerald-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-2xl"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-sm text-emerald-100">
+                <div class="bg-emerald-900/50 p-3 rounded-xl border border-emerald-700/40 flex items-start gap-3">
+                    <i class="fa-solid fa-coins text-amber-400 text-xl mt-0.5"></i>
+                    <div>
+                        <strong class="text-amber-300 block">Kutip Syiling (+2 Mata Setiap Satu)</strong>
+                        Lompat ke teratai yang mempunyai syiling emas untuk mendapat 2 mata bagi setiap syiling!
+                    </div>
+                </div>
+
+                <div class="bg-emerald-900/50 p-3 rounded-xl border border-emerald-700/40">
+                    <strong class="text-emerald-300 block mb-1">Kawalan Pemain Tempatan:</strong>
+                    <ul class="space-y-1 text-xs">
+                        <li><span class="font-bold text-amber-300">Pemain 1 (Katak Hijau):</span> Kunci <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">W</kbd> (Lompat), <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">A</kbd> / <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">D</kbd> (Kiri/Kanan)</li>
+                        <li><span class="font-bold text-sky-300">Pemain 2 (Katak Biru):</span> Kunci <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">↑</kbd> (Lompat), <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">←</kbd> / <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">→</kbd> (Kiri/Kanan)</li>
+                        <li><span class="font-bold text-rose-300">Pemain 3 (Katak Merah):</span> Kunci <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">I</kbd> (Lompat), <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">J</kbd> / <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">L</kbd> (Kiri/Kanan)</li>
+                        <li><span class="font-bold text-purple-300">Pemain 4 (Katak Ungu):</span> Kunci <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">Num 8</kbd> (Lompat), <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">Num 4</kbd> / <kbd class="px-1.5 py-0.5 bg-emerald-950 rounded text-emerald-300 border border-emerald-700">Num 6</kbd> (Kiri/Kanan)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-emerald-900/50 p-3 rounded-xl border border-emerald-700/40">
+                    <strong class="text-emerald-300 block mb-1">Logik & Elak Bahaya:</strong>
+                    Awas! Jangan jatuh ke dalam air atau terpijak Teratai Tenggelam. Katak yang bertahan paling tinggi & paling banyak mata menang!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME OVER / WINNER MODAL -->
+    <div id="gameover-modal" class="absolute inset-0 z-50 flex items-center justify-center p-4 bg-emerald-950/90 backdrop-blur-md hidden">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 md:p-8 text-center border border-emerald-400/30 relative">
+            <div id="winner-crown" class="inline-block text-amber-400 text-6xl mb-2 animate-bounce">
+                <i class="fa-solid fa-crown"></i>
+            </div>
+            
+            <h2 id="winner-title" class="text-3xl font-black text-white mb-1">JUARA FROGGY!</h2>
+            <p id="winner-subtitle" class="text-emerald-300 text-sm mb-6 font-medium">Pemain 1 Menang Kolam Ini!</p>
+
+            <!-- Player Results Podium List -->
+            <div id="podium-results" class="space-y-2 mb-6 text-left max-h-52 overflow-y-auto pr-1">
+                <!-- Rendered dynamically -->
+            </div>
+
+            <div class="flex gap-3">
+                <button id="restart-btn" class="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950 font-black text-lg shadow-lg hover:brightness-110 btn-bounce">
+                    <i class="fa-solid fa-rotate-right mr-1.5"></i> Main Lagi
+                </button>
+                <button id="menu-btn" class="px-5 py-3.5 rounded-2xl glass-card text-emerald-200 font-bold hover:bg-emerald-800/40 transition">
+                    Menu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Imports Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Config setup with fallback
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'froggy-jumps-app';
+        let firebaseConfig = null;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                firebaseConfig = JSON.parse(__firebase_config);
+            }
+        } catch (e) { console.log('Firebase config fallback'); }
+
+        let app = null, db = null, auth = null, currentUser = null;
+
+        if (firebaseConfig) {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    signInWithCustomToken(auth, __initial_auth_token).then(res => currentUser = res.user).catch(() => {
+                        signInAnonymously(auth).then(res => currentUser = res.user);
+                    });
+                } else {
+                    signInAnonymously(auth).then(res => currentUser = res.user);
+                }
+            } catch (err) { console.warn("Firestore initialization skipped", err); }
+        }
+
+        window.firebaseCtx = { db, auth, appId, getUser: () => currentUser };
+    </script>
+
+    <!-- Main Game Script -->
+    <script>
+        // Web Audio Synthesizer for Retro Arcade Effects
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playJump() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(450, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playCoin() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                // Double chime for coin
+                [987.77, 1318.51].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.35, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.15);
+                });
+            }
+
+            playSplash() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+
+            playWin() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((note, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(note, this.ctx.currentTime + i * 0.12);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + i * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.12 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + i * 0.12);
+                    osc.stop(this.ctx.currentTime + i * 0.12 + 0.2);
+                });
+            }
+        }
+
+        const audio = new SoundFX();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Frog Configurations & Themes
+        const FROG_PRESETS = [
+            { id: 1, name: "P1 Hijau", color: "#22c55e", darkColor: "#15803d", eyeColor: "#ffffff", keys: "W, A, D" },
+            { id: 2, name: "P2 Biru", color: "#38bdf8", darkColor: "#0369a1", eyeColor: "#ffffff", keys: "↑, ←, →" },
+            { id: 3, name: "P3 Merah", color: "#f43f5e", darkColor: "#be123c", eyeColor: "#ffffff", keys: "I, J, L" },
+            { id: 4, name: "P4 Ungu", color: "#a855f7", darkColor: "#6b21a8", eyeColor: "#ffffff", keys: "N8, N4, N6" }
+        ];
+
+        let state = {
+            gameActive: false,
+            paused: false,
+            playerCount: 2,
+            players: [],
+            cameraY: 0,
+            targetCameraY: 0,
+            lilyPads: [],
+            coins: [],
+            particles: [],
+            popups: [],
+            waterRipples: [],
+            highestReachedY: 0,
+            onlineMode: false,
+            roomCode: ''
+        };
+
+        // Window Resize Handler
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class LilyPad {
+            constructor(x, y, radius = 38, isSinking = false) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.isSinking = isSinking;
+                this.sinkOffset = 0;
+                this.angle = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.005;
+            }
+
+            update() {
+                this.angle += this.rotationSpeed;
+                if (this.isSinking && this.sinkOffset > 0) {
+                    this.sinkOffset += 0.8;
+                }
+            }
+
+            draw(ctx, cameraY) {
+                const drawY = this.y - cameraY;
+                if (drawY < -100 || drawY > canvas.height + 100) return;
+
+                ctx.save();
+                ctx.translate(this.x, drawY + this.sinkOffset);
+                ctx.rotate(this.angle);
+
+                // Lily pad body
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0.2, Math.PI * 1.85);
+                ctx.lineTo(0, 0);
+                ctx.closePath();
+
+                // Gradient styling
+                const grad = ctx.createRadialGradient(0, 0, 5, 0, 0, this.radius);
+                if (this.isSinking) {
+                    grad.addColorStop(0, '#15803d');
+                    grad.addColorStop(1, '#064e3b');
+                } else {
+                    grad.addColorStop(0, '#34d399');
+                    grad.addColorStop(0.7, '#10b981');
+                    grad.addColorStop(1, '#047857');
+                }
+
+                ctx.fillStyle = grad;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 12;
+                ctx.shadowOffsetY = 6;
+                ctx.fill();
+
+                // Veins on leaf
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+                for (let a = 0.5; a < Math.PI * 1.8; a += 0.7) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(a) * (this.radius - 4), Math.sin(a) * (this.radius - 4));
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class Coin {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 14;
+                this.collected = false;
+                this.rotation = Math.random() * Math.PI;
+                this.pulse = 0;
+            }
+
+            update() {
+                this.rotation += 0.05;
+                this.pulse += 0.08;
+            }
+
+            draw(ctx, cameraY) {
+                if (this.collected) return;
+                const drawY = this.y - cameraY;
+                if (drawY < -100 || drawY > canvas.height + 100) return;
+
+                const scaleX = Math.abs(Math.sin(this.rotation));
+                const floatY = drawY + Math.sin(this.pulse) * 4;
+
+                ctx.save();
+                ctx.translate(this.x, floatY);
+                ctx.scale(scaleX, 1);
+
+                // Golden Coin Outer
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#f59e0b';
+                ctx.shadowColor = '#fbbf24';
+                ctx.shadowBlur = 15;
+                ctx.fill();
+
+                // Inner Coin Detail
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius * 0.7, 0, Math.PI * 2);
+                ctx.fillStyle = '#fef08a';
+                ctx.fill();
+
+                // Point Indicator "+2"
+                ctx.fillStyle = '#78350f';
+                ctx.font = '900 10px Fredoka';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('2', 0, 1);
+
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 6;
+                this.vy = (Math.random() - 0.5) * 6 - 2;
+                this.radius = Math.random() * 4 + 2;
+                this.color = color;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.03 + 0.015;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.15; // Gravity
+                this.alpha -= this.decay;
+            }
+
+            draw(ctx, cameraY) {
+                if (this.alpha <= 0) return;
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - cameraY, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class FloatingText {
+            constructor(text, x, y, color = '#34d399') {
+                this.text = text;
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.alpha = 1;
+                this.vy = -2;
+            }
+
+            update() {
+                this.y += this.vy;
+                this.alpha -= 0.02;
+            }
+
+            draw(ctx, cameraY) {
+                if (this.alpha <= 0) return;
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.font = 'bold 22px Outfit, sans-serif';
+                ctx.fillStyle = this.color;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 6;
+                ctx.fillText(this.text, this.x, this.y - cameraY);
+                ctx.restore();
+            }
+        }
+
+        class FrogPlayer {
+            constructor(preset, index, totalPlayers) {
+                this.id = preset.id;
+                this.name = preset.name;
+                this.color = preset.color;
+                this.darkColor = preset.darkColor;
+                this.index = index;
+
+                // Position calculation for initial pond line
+                const spacing = canvas.width / (totalPlayers + 1);
+                this.x = spacing * (index + 1);
+                this.y = canvas.height - 120;
+                this.startX = this.x;
+                this.startY = this.y;
+
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = 22;
+                this.isJumping = false;
+                this.coinsCollected = 0;
+                this.score = 0; // Each coin = 2 points
+                this.isAlive = true;
+                this.facing = 0; // -1 left, 1 right
+                this.scaleY = 1;
+                this.scaleX = 1;
+                this.highestY = this.y;
+            }
+
+            jump(dirX = 0) {
+                if (!this.isAlive || this.isJumping) return;
+
+                this.isJumping = true;
+                this.vy = -14;
+                this.vx = dirX * 7;
+                this.scaleY = 1.3;
+                this.scaleX = 0.7;
+
+                audio.playJump();
+
+                // Spawn jump dust particles
+                for (let i = 0; i < 6; i++) {
+                    state.particles.push(new Particle(this.x, this.y + 10, 'rgba(255, 255, 255, 0.6)'));
+                }
+            }
+
+            update() {
+                if (!this.isAlive) return;
+
+                // Physics movement
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Screen boundaries bounce
+                if (this.x - this.radius < 20) {
+                    this.x = 20 + this.radius;
+                    this.vx *= -0.5;
+                }
+                if (this.x + this.radius > canvas.width - 20) {
+                    this.x = canvas.width - 20 - this.radius;
+                    this.vx *= -0.5;
+                }
+
+                // Gravity during airborne
+                if (this.isJumping) {
+                    this.vy += 0.65;
+                    this.scaleY = Math.max(0.8, this.scaleY - 0.02);
+                    this.scaleX = Math.min(1.2, this.scaleX + 0.02);
+
+                    // Landing Check on Lily Pads
+                    if (this.vy > 0) {
+                        for (let pad of state.lilyPads) {
+                            const dx = this.x - pad.x;
+                            const dy = (this.y + 10) - pad.y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+
+                            if (dist < pad.radius + 10) {
+                                // Landed safely!
+                                this.y = pad.y - 12;
+                                this.vy = 0;
+                                this.vx = 0;
+                                this.isJumping = false;
+                                this.scaleY = 0.7;
+                                this.scaleX = 1.3;
+
+                                if (pad.isSinking) {
+                                    pad.sinkOffset = 1;
+                                }
+
+                                // Update highest point achieved
+                                if (this.y < this.highestY) {
+                                    this.highestY = this.y;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // Smooth squish recovery
+                    this.scaleX += (1 - this.scaleX) * 0.2;
+                    this.scaleY += (1 - this.scaleY) * 0.2;
+                }
+
+                // Check drown condition (Fell below water / camera view)
+                if (this.y - state.cameraY > canvas.height + 80) {
+                    this.drown();
+                }
+            }
+
+            drown() {
+                if (!this.isAlive) return;
+                this.isAlive = false;
+                audio.playSplash();
+
+                // Create water splash particles
+                for (let i = 0; i < 15; i++) {
+                    state.particles.push(new Particle(this.x, this.y, '#38bdf8'));
+                }
+                state.popups.push(new FloatingText("TERAPUNG!", this.x, this.y, "#f43f5e"));
+
+                checkGameOverCondition();
+            }
+
+            draw(ctx, cameraY) {
+                if (!this.isAlive) return;
+
+                const drawY = this.y - cameraY;
+
+                ctx.save();
+                ctx.translate(this.x, drawY);
+                ctx.scale(this.scaleX, this.scaleY);
+
+                // Frog Shadow
+                ctx.beginPath();
+                ctx.ellipse(0, 15, this.radius * 0.8, 6, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fill();
+
+                // Frog Legs
+                ctx.beginPath();
+                ctx.arc(-16, 8, 10, 0, Math.PI * 2);
+                ctx.arc(16, 8, 10, 0, Math.PI * 2);
+                ctx.fillStyle = this.darkColor;
+                ctx.fill();
+
+                // Frog Body
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = 'rgba(0,0,0,0.2)';
+                ctx.shadowBlur = 8;
+                ctx.fill();
+
+                // Cute Belly Accent
+                ctx.beginPath();
+                ctx.arc(0, 4, this.radius * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                ctx.fill();
+
+                // Big Eyes
+                const eyeOffsetX = 10;
+                const eyeOffsetY = -16;
+
+                // Left Eye
+                ctx.beginPath();
+                ctx.arc(-eyeOffsetX, eyeOffsetY, 8, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(-eyeOffsetX, eyeOffsetY, 6, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(-eyeOffsetX + (this.vx > 0 ? 1 : -1), eyeOffsetY, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fill();
+
+                // Right Eye
+                ctx.beginPath();
+                ctx.arc(eyeOffsetX, eyeOffsetY, 8, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(eyeOffsetX, eyeOffsetY, 6, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(eyeOffsetX + (this.vx > 0 ? 1 : -1), eyeOffsetY, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fill();
+
+                // Player Indicator Crown/P1 Label
+                ctx.restore();
+
+                // Draw Name Tag Above Frog
+                ctx.font = 'bold 12px Outfit, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 4;
+                ctx.fillText(this.name, this.x, drawY - 32);
+            }
+        }
+
+        function generateInitialLevel() {
+            state.lilyPads = [];
+            state.coins = [];
+            state.highestReachedY = canvas.height - 120;
+
+            // Base starting platform row
+            const totalStartPads = Math.max(4, state.playerCount + 1);
+            for (let i = 0; i < totalStartPads; i++) {
+                const x = (canvas.width / (totalStartPads + 1)) * (i + 1);
+                state.lilyPads.push(new LilyPad(x, canvas.height - 120, 45, false));
+            }
+
+            // Generate upward lily pads up to height -5000px
+            let currentY = canvas.height - 240;
+            while (currentY > -6000) {
+                const numPadsInRow = Math.floor(Math.random() * 3) + 2;
+                for (let i = 0; i < numPadsInRow; i++) {
+                    const padX = Math.random() * (canvas.width - 120) + 60;
+                    const isSinking = Math.random() < 0.22;
+                    state.lilyPads.push(new LilyPad(padX, currentY, Math.random() * 8 + 36, isSinking));
+
+                    // Coin Spawn Logic: Each coin grants +2 Points!
+                    if (Math.random() < 0.65) {
+                        state.coins.push(new Coin(padX, currentY - 30));
+                    }
+                }
+                currentY -= (Math.random() * 45 + 110);
+            }
+        }
+
+        function checkCoinCollisions() {
+            state.players.forEach(player => {
+                if (!player.isAlive) return;
+
+                state.coins.forEach(coin => {
+                    if (coin.collected) return;
+
+                    const dx = player.x - coin.x;
+                    const dy = player.y - coin.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    // Pickup radius
+                    if (dist < player.radius + coin.radius + 8) {
+                        coin.collected = true;
+                        player.coinsCollected += 1;
+                        // MANDATORY RULE: Each coin = 2 points!
+                        player.score += 2;
+
+                        audio.playCoin();
+
+                        // Visual feedback text "+2 Mata"
+                        state.popups.push(new FloatingText("+2 Mata!", coin.x, coin.y, "#f59e0b"));
+
+                        // Sparkle effects
+                        for (let i = 0; i < 8; i++) {
+                            state.particles.push(new Particle(coin.x, coin.y, '#fbbf24'));
+                        }
+
+                        updateHUDScoreboard();
+                    }
+                });
+            });
+        }
+
+        function updateCamera() {
+            // Camera tracks the highest alive frog position
+            let minY = canvas.height - 120;
+            let aliveCount = 0;
+
+            state.players.forEach(p => {
+                if (p.isAlive) {
+                    aliveCount++;
+                    if (p.y < minY) {
+                        minY = p.y;
+                    }
+                }
+            });
+
+            // Target camera position
+            state.targetCameraY = Math.min(0, minY - canvas.height * 0.55);
+
+            // Smooth interpolation (lerp)
+            state.cameraY += (state.targetCameraY - state.cameraY) * 0.08;
+        }
+
+        function drawBackgroundWater(ctx) {
+            // Ambient Pond Background Gradient
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGrad.addColorStop(0, '#042f2e');
+            bgGrad.addColorStop(0.5, '#064e3b');
+            bgGrad.addColorStop(1, '#022c22');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Water Ripple Lines
+            ctx.strokeStyle = 'rgba(20, 184, 166, 0.12)';
+            ctx.lineWidth = 3;
+            const time = Date.now() * 0.0015;
+
+            for (let y = 0; y < canvas.height; y += 60) {
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 30) {
+                    const waveY = y + Math.sin(x * 0.01 + time + y) * 8;
+                    if (x === 0) ctx.moveTo(x, waveY);
+                    else ctx.lineTo(x, waveY);
+                }
+                ctx.stroke();
+            }
+        }
+
+        const keysPressed = {};
+
+        window.addEventListener('keydown', (e) => {
+            keysPressed[e.code] = true;
+            if (!state.gameActive || state.paused) return;
+
+            // Player 1: WASD Controls
+            if (state.players[0] && state.players[0].isAlive) {
+                if (e.code === 'KeyW') state.players[0].jump(0);
+                if (e.code === 'KeyA') state.players[0].jump(-1);
+                if (e.code === 'KeyD') state.players[0].jump(1);
+            }
+
+            // Player 2: Arrow Controls
+            if (state.players[1] && state.players[1].isAlive) {
+                if (e.code === 'ArrowUp') state.players[1].jump(0);
+                if (e.code === 'ArrowLeft') state.players[1].jump(-1);
+                if (e.code === 'ArrowRight') state.players[1].jump(1);
+            }
+
+            // Player 3: IJKL Controls
+            if (state.players[2] && state.players[2].isAlive) {
+                if (e.code === 'KeyI') state.players[2].jump(0);
+                if (e.code === 'KeyJ') state.players[2].jump(-1);
+                if (e.code === 'KeyL') state.players[2].jump(1);
+            }
+
+            // Player 4: Numpad Controls
+            if (state.players[3] && state.players[3].isAlive) {
+                if (e.code === 'Numpad8') state.players[3].jump(0);
+                if (e.code === 'Numpad4') state.players[3].jump(-1);
+                if (e.code === 'Numpad6') state.players[3].jump(1);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keysPressed[e.code] = false;
+        });
+
+        // Mobile Touch Controls Binding (For Player 1)
+        document.getElementById('btn-touch-jump').addEventListener('click', () => {
+            if (state.players[0] && state.players[0].isAlive) state.players[0].jump(0);
+        });
+        document.getElementById('btn-touch-left').addEventListener('click', () => {
+            if (state.players[0] && state.players[0].isAlive) state.players[0].jump(-1);
+        });
+        document.getElementById('btn-touch-right').addEventListener('click', () => {
+            if (state.players[0] && state.players[0].isAlive) state.players[0].jump(1);
+        });
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Pond Water
+            drawBackgroundWater(ctx);
+
+            if (state.gameActive && !state.paused) {
+                updateCamera();
+
+                // Update & Render Lily Pads
+                state.lilyPads.forEach(pad => {
+                    pad.update();
+                    pad.draw(ctx, state.cameraY);
+                });
+
+                // Update & Render Coins
+                state.coins.forEach(coin => {
+                    coin.update();
+                    coin.draw(ctx, state.cameraY);
+                });
+
+                // Check Collisions
+                checkCoinCollisions();
+
+                // Update & Render Frogs
+                state.players.forEach(player => {
+                    player.update();
+                    player.draw(ctx, state.cameraY);
+                });
+
+                // Update & Render Particles
+                for (let i = state.particles.length - 1; i >= 0; i--) {
+                    const p = state.particles[i];
+                    p.update();
+                    p.draw(ctx, state.cameraY);
+                    if (p.alpha <= 0) state.particles.splice(i, 1);
+                }
+
+                // Update & Render Floating Popups
+                for (let i = state.popups.length - 1; i >= 0; i--) {
+                    const pop = state.popups[i];
+                    pop.update();
+                    pop.draw(ctx, state.cameraY);
+                    if (pop.alpha <= 0) state.popups.splice(i, 1);
+                }
+            } else {
+                // Background ambient view when on menu
+                state.lilyPads.forEach(pad => pad.draw(ctx, 0));
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateHUDScoreboard() {
+            const container = document.getElementById('hud-scoreboard');
+            container.innerHTML = '';
+
+            state.players.forEach((p, idx) => {
+                const card = document.createElement('div');
+                card.className = `px-4 py-2.5 rounded-2xl glass-card flex items-center gap-3 shadow-lg border-2 transition-all ${p.isAlive ? 'border-emerald-400/50' : 'border-rose-500/50 opacity-60'}`;
+                
+                card.innerHTML = `
+                    <div class="w-4 h-4 rounded-full" style="background-color: ${p.color}"></div>
+                    <div>
+                        <div class="text-xs font-bold text-emerald-200 flex items-center gap-1">
+                            ${p.name}
+                            ${!p.isAlive ? '<span class="text-rose-400 font-extrabold text-[10px]">(GUGUR)</span>' : ''}
+                        </div>
+                        <div class="text-sm font-extrabold text-amber-300 flex items-center gap-1">
+                            <i class="fa-solid fa-coins text-xs"></i> ${p.coinsCollected} Syiling 
+                            <span class="text-emerald-400 text-xs">(${p.score} Mata)</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function checkGameOverCondition() {
+            const alivePlayers = state.players.filter(p => p.isAlive);
+
+            // Game over when 0 or 1 player remains (if multi-player) or when all drown
+            if (alivePlayers.length === 0 || (state.players.length > 1 && alivePlayers.length === 0)) {
+                setTimeout(showGameOverModal, 1000);
+            } else if (state.players.length > 1 && alivePlayers.length === 1) {
+                // Optional delay to declare winner
+                setTimeout(showGameOverModal, 1200);
+            }
+        }
+
+        function showGameOverModal() {
+            state.gameActive = false;
+            audio.playWin();
+
+            // Sort players by score (Coins * 2) and height
+            const sorted = [...state.players].sort((a, b) => b.score - a.score || a.highestY - b.highestY);
+            const winner = sorted[0];
+
+            document.getElementById('winner-title').innerText = `JUARA: ${winner.name}!`;
+            document.getElementById('winner-subtitle').innerText = `Berjaya mengumpul ${winner.coinsCollected} Syiling (${winner.score} Mata)!`;
+
+            const podiumList = document.getElementById('podium-results');
+            podiumList.innerHTML = '';
+
+            sorted.forEach((p, rank) => {
+                const row = document.createElement('div');
+                row.className = `p-3 rounded-2xl flex justify-between items-center ${rank === 0 ? 'bg-amber-500/20 border border-amber-400/50' : 'bg-emerald-900/40 border border-emerald-700/30'}`;
+                
+                row.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-lg ${rank === 0 ? 'text-amber-300' : 'text-emerald-400'}">#${rank + 1}</span>
+                        <div class="w-4 h-4 rounded-full" style="background:${p.color}"></div>
+                        <span class="font-bold text-white text-sm">${p.name}</span>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-amber-300 font-extrabold text-sm"><i class="fa-solid fa-coins text-xs mr-1"></i>${p.coinsCollected} Syiling</div>
+                        <div class="text-emerald-400 text-xs font-bold">${p.score} Mata</div>
+                    </div>
+                `;
+                podiumList.appendChild(row);
+            });
+
+            document.getElementById('gameover-modal').classList.remove('hidden');
+        }
+
+        function renderFrogCustomizer() {
+            const container = document.getElementById('frog-selection-list');
+            container.innerHTML = '';
+
+            for (let i = 0; i < state.playerCount; i++) {
+                const preset = FROG_PRESETS[i];
+                const card = document.createElement('div');
+                card.className = "glass-card p-3 rounded-2xl flex justify-between items-center border border-emerald-500/30";
+                
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full shadow-md flex items-center justify-center font-bold text-emerald-950 text-xs" style="background:${preset.color}">
+                            P${i + 1}
+                        </div>
+                        <div class="text-left">
+                            <div class="font-extrabold text-sm text-white">${preset.name}</div>
+                            <div class="text-[11px] text-emerald-300">Kawalan: <span class="font-mono bg-emerald-950 px-1.5 py-0.5 rounded text-amber-300 border border-emerald-800">${preset.keys}</span></div>
+                        </div>
+                    </div>
+                    <div class="text-xs font-bold text-emerald-400">
+                        1 Syiling = <span class="text-amber-300">+2 Mata</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        // Count Selector Button Clicks
+        document.querySelectorAll('#player-count-selector .count-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#player-count-selector .count-btn').forEach(b => {
+                    b.className = "count-btn py-3 rounded-2xl glass-card font-extrabold text-lg text-emerald-200 border-2 border-transparent hover:border-emerald-400 transition";
+                });
+                btn.className = "count-btn py-3 rounded-2xl glass-card font-extrabold text-lg text-emerald-950 bg-emerald-400 border-2 border-emerald-200 transition";
+                state.playerCount = parseInt(btn.dataset.count);
+                renderFrogCustomizer();
+            });
+        });
+
+        // Tab Switches (Local vs Online)
+        document.getElementById('tab-local').addEventListener('click', () => {
+            document.getElementById('tab-local').className = "py-2.5 px-4 rounded-xl font-bold text-sm transition bg-gradient-to-r from-emerald-500 to-teal-400 text-emerald-950 shadow-md";
+            document.getElementById('tab-online').className = "py-2.5 px-4 rounded-xl font-bold text-sm text-emerald-300 hover:text-white transition";
+            document.getElementById('panel-local').classList.remove('hidden');
+            document.getElementById('panel-online').classList.add('hidden');
+        });
+
+        document.getElementById('tab-online').addEventListener('click', () => {
+            document.getElementById('tab-online').className = "py-2.5 px-4 rounded-xl font-bold text-sm transition bg-gradient-to-r from-emerald-500 to-teal-400 text-emerald-950 shadow-md";
+            document.getElementById('tab-local').className = "py-2.5 px-4 rounded-xl font-bold text-sm text-emerald-300 hover:text-white transition";
+            document.getElementById('panel-online').classList.remove('hidden');
+            document.getElementById('panel-local').classList.add('hidden');
+        });
+
+        // Start Game
+        document.getElementById('start-local-btn').addEventListener('click', () => {
+            audio.init();
+            document.getElementById('menu-modal').classList.add('hidden');
+            document.getElementById('pause-btn').classList.remove('hidden');
+            document.getElementById('hud-scoreboard').classList.remove('opacity-0', '-translate-y-4');
+
+            // Initialize Players
+            state.players = [];
+            for (let i = 0; i < state.playerCount; i++) {
+                state.players.push(new FrogPlayer(FROG_PRESETS[i], i, state.playerCount));
+            }
+
+            generateInitialLevel();
+            updateHUDScoreboard();
+            state.gameActive = true;
+            state.paused = false;
+        });
+
+        // Audio Toggle
+        document.getElementById('audio-toggle-btn').addEventListener('click', () => {
+            audio.enabled = !audio.enabled;
+            const icon = document.getElementById('audio-icon');
+            if (audio.enabled) {
+                icon.className = "fa-solid fa-volume-high text-lg";
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-lg text-rose-400";
+            }
+        });
+
+        // Pause Game
+        document.getElementById('pause-btn').addEventListener('click', () => {
+            state.paused = !state.paused;
+            if (state.paused) {
+                document.getElementById('menu-modal').classList.remove('hidden');
+            } else {
+                document.getElementById('menu-modal').classList.add('hidden');
+            }
+        });
+
+        // Modals & Reset Buttons
+        document.getElementById('how-to-play-btn').addEventListener('click', () => {
+            document.getElementById('help-modal').classList.remove('hidden');
+        });
+        document.getElementById('close-help-btn').addEventListener('click', () => {
+            document.getElementById('help-modal').classList.add('hidden');
+        });
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('gameover-modal').classList.add('hidden');
+            document.getElementById('start-local-btn').click();
+        });
+        document.getElementById('menu-btn').addEventListener('click', () => {
+            document.getElementById('gameover-modal').classList.add('hidden');
+            document.getElementById('hud-scoreboard').classList.add('opacity-0', '-translate-y-4');
+            document.getElementById('menu-modal').classList.remove('hidden');
+        });
+
+        window.onload = function() {
+            renderFrogCustomizer();
+            generateInitialLevel();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
